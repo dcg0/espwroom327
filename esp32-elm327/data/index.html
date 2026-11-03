@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DC ECU · panel ESP32</title>
+<style>
+  :root{
+    --bg:240 9% 4%; --panel:240 8% 8%; --panel2:240 8% 11%; --line:240 6% 17%;
+    --text:240 12% 95%; --dim:240 5% 58%; --faint:240 5% 38%;
+    --red:354 100% 58%; --blue:205 100% 62%; --green:148 72% 55%;
+    --amber:38 100% 55%; --orange:22 100% 55%;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:hsl(var(--bg));color:hsl(var(--text));
+    font-family:"Barlow","Segoe UI",sans-serif}
+  .mono{font-family:ui-monospace,"JetBrains Mono",monospace}
+  .display{font-family:"Chakra Petch","Segoe UI",sans-serif}
+  .app{max-width:520px;margin:0 auto;height:100vh;height:100dvh;display:flex;flex-direction:column;
+    border-left:1px solid hsl(var(--line));border-right:1px solid hsl(var(--line))}
+  .bar{display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;
+    border-bottom:1px solid hsl(var(--red)/.7);font-size:11px}
+  .bar b{color:hsl(var(--red));letter-spacing:.06em}
+  .bar .k{font-size:9px;letter-spacing:.12em;color:hsl(var(--faint))}
+  .bar .ok{color:hsl(var(--green))} .bar .bad{color:hsl(var(--red))} .bar .wait{color:hsl(var(--amber))}
+  main{flex:1;min-height:0;padding:8px;display:flex;flex-direction:column;gap:6px;overflow-y:auto}
+  main section{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px}
+  .row{display:flex;gap:6px}
+  .card{background:hsl(var(--panel));border:1px solid hsl(var(--line));border-radius:6px}
+  .gauge{flex:1;display:flex;flex-direction:column;align-items:center;padding:4px}
+  .gauge .lab{font-size:10px;font-weight:700;letter-spacing:.08em;color:hsl(var(--text)/.88)}
+  .dial{position:relative;width:112px;height:112px;margin-top:2px}
+  .dial svg{width:100%;height:100%}
+  .dial .val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .dial .num{font-size:32px;font-weight:700;line-height:1}
+  .dial .unit{font-size:7px;letter-spacing:.14em;color:hsl(var(--faint));margin-top:3px}
+  .gauge .sub{font-size:8px;color:hsl(var(--faint));margin-top:2px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .mini{padding:5px 6px}
+  .mini .lab{font-size:9px;font-weight:700;letter-spacing:.06em;color:hsl(var(--text)/.88);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini .val{font-size:18px;font-weight:700;line-height:1.1}
+  .mini .unit{font-size:8px;color:hsl(var(--dim))}
+  .list{display:flex;flex-direction:column;gap:2px}
+  .item{display:flex;justify-content:space-between;align-items:center;padding:4px 6px;border-radius:4px}
+  .item:nth-child(odd){background:hsl(var(--panel))}
+  .item:nth-child(even){background:hsl(var(--panel2))}
+  .item .n{font-size:13px;color:hsl(var(--text))}
+  .item .v{font-size:12px;font-weight:700}
+  canvas{width:100%;height:150px;display:block;background:hsl(220 30% 4%);
+    border:1px solid hsl(var(--line));border-radius:6px}
+  .tabs{display:flex;height:34px;border-top:1px solid hsl(var(--line))}
+  .tabs button{flex:1;background:none;border:0;border-top:2px solid transparent;
+    color:hsl(var(--faint));font:700 9px ui-monospace,monospace;letter-spacing:.06em;cursor:pointer}
+  .tabs button[aria-pressed="true"]{color:hsl(var(--red));border-top-color:hsl(var(--red));
+    background:hsl(var(--panel2))}
+  .btn{display:flex;justify-content:space-between;align-items:center;width:100%;
+    background:hsl(var(--panel));border:1px solid hsl(var(--line));border-radius:4px;
+    color:hsl(var(--text));padding:8px 10px;font-size:12px;font-weight:600;cursor:pointer}
+  .btn small{font:400 9px ui-monospace,monospace;color:hsl(var(--dim))}
+  .dev{width:100%;text-align:left;background:hsl(var(--panel2));border:1px solid hsl(var(--line));
+    border-radius:4px;color:hsl(var(--text));padding:6px;margin-top:4px;cursor:pointer;font-size:11px}
+  .dev span{display:block;font:400 8px ui-monospace,monospace;color:hsl(var(--faint))}
+  .kv{display:flex;justify-content:space-between;gap:8px;padding:5px 8px;border-radius:4px;font-size:11px}
+  .kv:nth-child(odd){background:hsl(var(--panel))}
+  .kv:nth-child(even){background:hsl(var(--panel2))}
+  .kv b{font:400 9px ui-monospace,monospace;color:hsl(var(--dim));letter-spacing:.1em}
+  .kv span{font:400 11px ui-monospace,monospace;color:hsl(var(--text));text-align:right}
+  .fill{flex:1;min-height:72px;display:flex;flex-direction:column;gap:5px;padding:6px 7px;overflow:hidden}
+  .stripTop{display:flex;justify-content:space-between;align-items:center;gap:6px;
+    font:700 9px ui-monospace,monospace;letter-spacing:.12em;color:hsl(var(--dim))}
+  .spark{flex:1;min-height:40px;display:flex;align-items:flex-end;gap:1px}
+  .spark i{flex:1;display:block;min-height:2px;border-radius:1px 1px 0 0;background:hsl(var(--blue)/.85)}
+  .stripStats{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+  .stripStats div{background:hsl(var(--panel2));border-radius:3px;padding:3px 5px}
+  .stripStats b{display:block;font:400 8px ui-monospace,monospace;letter-spacing:.1em;color:hsl(var(--faint))}
+  .stripStats span{font:700 12px ui-monospace,monospace;color:hsl(var(--text))}
+  .hidden{display:none}
+  .toast{position:fixed;left:50%;top:12px;transform:translateX(-50%);background:hsl(var(--panel2));
+    border:1px solid hsl(var(--green)/.6);color:hsl(var(--green));border-radius:6px;
+    padding:6px 12px;font:400 11px ui-monospace,monospace;z-index:20}
+  @keyframes dcPulse{0%,100%{opacity:1}50%{opacity:.25}}
+  .pulse{animation:dcPulse 900ms ease-in-out infinite}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="bar mono">
+    <b class="display">DC</b><span class="display" style="letter-spacing:.18em">ECU</span>
+    <span id="bt" class="k bad">BT</span><span class="k ok">WIFI</span>
+    <span id="elm" class="k bad">ELM</span>
+    <span style="flex:1"></span>
+    <span id="volt">--.- V</span><span id="clock" class="k">--:--</span>
+  </div>
+
+  <main>
+    <section id="tab-tablero">
+      <div class="row">
+        <div class="card gauge">
+          <span class="lab">RPM</span>
+          <div class="dial">
+            <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none"
+              stroke="hsl(var(--line))" stroke-width="8" stroke-linecap="round" pathLength="100"
+              stroke-dasharray="66.67 100" transform="rotate(150 50 50)"/>
+              <circle id="arc-rpm" cx="50" cy="50" r="40" fill="none" stroke="currentColor"
+              stroke-width="8" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100"
+              transform="rotate(150 50 50)"/></svg>
+            <div class="val"><span id="rpm" class="num display">--</span><span class="unit">rpm</span></div>
+          </div>
+          <span id="fase" class="sub">esperando datos</span>
+        </div>
+        <div class="card gauge">
+          <span class="lab">VELOCIDAD</span>
+          <div class="dial">
+            <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none"
+              stroke="hsl(var(--line))" stroke-width="8" stroke-linecap="round" pathLength="100"
+              stroke-dasharray="66.67 100" transform="rotate(150 50 50)"/>
+              <circle id="arc-speed" cx="50" cy="50" r="40" fill="none" stroke="currentColor"
+              stroke-width="8" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100"
+              transform="rotate(150 50 50)"/></svg>
+            <div class="val"><span id="speed" class="num display">--</span><span class="unit">km/h</span></div>
+          </div>
+          <span id="speedBand" class="sub">0-15 sin alarma</span>
+        </div>
+      </div>
+      <div class="grid" style="margin-top:6px" id="minis"></div>
+      <div class="card fill">
+        <div class="stripTop">
+          <span>RPM · ÚLTIMOS 20 s</span>
+          <span id="sparkPeak">máx 0 rpm</span>
+        </div>
+        <div class="spark" id="spark"></div>
+        <div class="stripStats" id="stripStats"></div>
+      </div>
+    </section>
+
+    <section id="tab-sensores" class="hidden">
+      <div class="mono" style="font-size:9px;color:hsl(var(--faint));margin-bottom:4px">
+        SENSORES EN VIVO · <span id="pidCount">0</span> PIDs
+      </div>
+      <div class="list" id="sensors"></div>
+    </section>
+
+    <section id="tab-graficas" class="hidden">
+      <div class="row" id="pidBtns" style="margin-bottom:6px"></div>
+      <canvas id="chart" width="960" height="300"></canvas>
+      <div class="mono" style="font-size:9px;color:hsl(var(--faint));margin-top:4px">
+        <span id="chartLabel">RPM</span> · ventana 22 s
+      </div>
+    </section>
+
+    <section id="tab-fallas" class="hidden">
+      <div class="row" style="margin-bottom:6px">
+        <button class="btn" id="dtcRead" style="flex:1"><span>LEER CÓDIGOS</span><small>03</small></button>
+        <button class="btn" id="dtcClear" style="flex:1"><span>BORRAR</span><small>04</small></button>
+      </div>
+      <div class="list" id="dtcs"></div>
+    </section>
+
+    <section id="tab-info" class="hidden"><div id="info"></div></section>
+
+    <section id="tab-ajustes" class="hidden">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="card" style="padding:6px 8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+            <span class="mono" style="font-size:9px;letter-spacing:.12em;color:hsl(var(--dim))">ENLACE ELM327</span>
+            <span id="linkState" class="mono" style="font-size:10px;font-weight:700;color:hsl(var(--amber))">ARRANCANDO</span>
+          </div>
+          <div id="linkDetail" class="mono" style="font-size:9px;color:hsl(var(--dim));margin-top:3px">
+            leyendo configuración guardada…
+          </div>
+          <div id="scanBar" style="height:3px;margin-top:5px;border-radius:2px;background:hsl(var(--line));overflow:hidden">
+            <div id="scanFill" style="height:100%;width:0%;background:hsl(var(--red));transition:width .2s linear"></div>
+          </div>
+        </div>
+        <button class="btn" id="scan"><span>Escanear adaptadores</span><small>Bluetooth</small></button>
+        <button class="btn" id="autoBtn"><span>Reconexión automática</span><small id="autoState">ACTIVADA</small></button>
+        <button class="btn" id="disconnect"><span>Desconectar ELM327</span><small>cerrar enlace</small></button>
+        <div class="row">
+          <input id="pinInput" inputmode="numeric" maxlength="4" placeholder="PIN" aria-label="PIN del ELM327"
+            style="flex:1;background:hsl(var(--panel2));border:1px solid hsl(var(--line));border-radius:4px;color:hsl(var(--text));padding:6px;font:700 12px ui-monospace,monospace">
+          <button class="btn" id="savePin" style="flex:1"><span>Guardar PIN</span><small>4 dígitos</small></button>
+        </div>
+        <div id="devices"></div>
+        <div class="card" style="padding:5px 7px">
+          <div class="mono" style="font-size:9px;letter-spacing:.12em;color:hsl(var(--dim));margin-bottom:3px">ACTIVIDAD</div>
+          <div id="btLog" class="mono" style="font-size:9px;line-height:1.5;color:hsl(var(--dim));max-height:88px;overflow:hidden"></div>
+        </div>
+        <div class="mono" style="font-size:9px;color:hsl(var(--faint))">
+          AP Buss-PANEL · el adaptador debe ser Bluetooth Classic
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="tabs">
+    <button data-tab="tablero" aria-pressed="true">TABLERO</button>
+    <button data-tab="sensores" aria-pressed="false">SENSORES</button>
+    <button data-tab="graficas" aria-pressed="false">GRÁFICAS</button>
+    <button data-tab="fallas" aria-pressed="false">FALLAS</button>
+    <button data-tab="info" aria-pressed="false">INFO</button>
+    <button data-tab="ajustes" aria-pressed="false">AJUSTES</button>
+  </div>
+</div>
+
+<script>
+const PID_COLORS = {
+  "0C":"205 100% 62%","0D":"190 95% 60%","05":"172 80% 58%","04":"148 72% 55%",
+  "11":"110 70% 58%","0E":"82 75% 58%","42":"55 95% 62%","0B":"30 95% 62%",
+  "0F":"18 95% 62%","10":"340 90% 66%","33":"320 85% 65%","06":"300 80% 66%",
+  "07":"282 80% 68%","2F":"264 85% 70%","5E":"245 85% 70%","0A":"225 90% 68%",
+  "14":"215 90% 66%","15":"160 75% 60%","5C":"130 65% 60%","43":"65 80% 60%"
+};
+const MINIS = [["05","REFRIGERANTE","°C"],["04","CARGA","%"],["11","ACELERADOR","%"],
+               ["0F","ADMISIÓN","°C"],["0B","PRES. MAP","kPa"],["42","BATERÍA","V"]];
+const GRAPH_PIDS = ["0C","0D","05","10","0B","14"];
+let pids = [], values = {}, connected = false, protocol = "--", device = "";
+const history = {};
+let graphPid = "0C", tab = "tablero";
+let apSsid = "Buss-PANEL", apIp = "192.168.4.1";
+const bootAt = Date.now();
+let maxTemp = null;
+
+const el = (id) => document.getElementById(id);
+const css = (hsl) => `hsl(${hsl})`;
+const fmt = (pid, v) => {
+  if (v === null || v === undefined) return "--";
+  const d = pids.find((p) => p.pid === pid);
+  return Number(v).toFixed(d ? d.dec : 1);
+};
+
+function level(pid, v) {
+  if (v === null || v === undefined) return "neutral";
+  const abs = Math.abs(v);
+  switch (pid) {
+    case "0C": return v < 50 ? "neutral" : v < 5200 ? "ok" : v < 6200 ? "warn" : "bad";
+    case "05": return v < 55 ? "neutral" : v <= 100 ? "ok" : v <= 106 ? "warn" : "bad";
+    case "04": case "43": return v < 5 ? "neutral" : v < 78 ? "ok" : v < 90 ? "warn" : "bad";
+    case "11": return v < 2 ? "neutral" : v < 55 ? "ok" : v < 80 ? "warn" : "bad";
+    case "0F": return v < 45 ? "ok" : v < 62 ? "warn" : "bad";
+    case "0B": return v < 105 ? "ok" : v < 130 ? "warn" : "bad";
+    case "42": return (v >= 13.2 && v <= 14.9) ? "ok" : (v >= 12.2 && v <= 15.3) ? "warn" : "bad";
+    case "06": case "07": return abs < 10 ? "ok" : abs < 20 ? "warn" : "bad";
+    case "2F": return v > 25 ? "ok" : v > 10 ? "warn" : "bad";
+    case "0A": return (v >= 280 && v <= 420) ? "ok" : (v >= 240 && v <= 470) ? "warn" : "bad";
+    case "14": case "15": return (v >= 0.05 && v <= 0.95) ? "ok" : (v >= 0.02 && v <= 1.05) ? "warn" : "bad";
+    case "5C": return v < 60 ? "neutral" : v < 115 ? "ok" : v < 125 ? "warn" : "bad";
+    default: return "ok";
+  }
+}
+
+function tone(pid, v) {
+  if (pid === "0D") {
+    if (v === null || v === undefined || v < 15) return css(PID_COLORS["0D"]);
+    if (v < 16) return css("148 72% 55%");
+    if (v <= 30) return css("38 100% 55%");
+    if (v <= 45) return css("22 100% 55%");
+    return css("354 100% 58%");
+  }
+  const l = level(pid, v);
+  if (l === "bad") return css("354 100% 58%");
+  if (l === "warn") return css("38 100% 55%");
+  return css(PID_COLORS[pid] || "205 100% 62%");
+}
+
+function buildUi() {
+  el("minis").innerHTML = MINIS.map(([pid, lab, unit]) => `
+    <div class="card mini"><div class="lab">${lab}</div>
+      <div class="val display" id="mini-${pid}">--</div>
+      <div class="unit">${unit}</div></div>`).join("");
+  el("sensors").innerHTML = pids.map((p) => `
+    <div class="item"><span class="n">${p.nombre}</span>
+      <span class="v mono" id="sen-${p.pid}">--</span></div>`).join("");
+  el("pidCount").textContent = String(pids.length);
+  el("pidBtns").innerHTML = GRAPH_PIDS.map((pid) => `
+    <button class="dev" data-pid="${pid}" style="flex:1;text-align:center;margin-top:0">${pid}</button>`).join("");
+}
+
+function renderInfo() {
+  const rows = [
+    ["PROTOCOLO", protocol], ["ADAPTADOR", device || "sin adaptador"],
+    ["ESTADO", connected ? "CONECTADO" : "SIN ENLACE"],
+    ["PIDS", pids.length + " soportados"], ["PIN", "1234"],
+    ["RED", apSsid + " · " + apIp]
+  ];
+  el("info").innerHTML = rows.map(([k, v]) =>
+    `<div class="kv"><b>${k}</b><span>${v}</span></div>`).join("");
+}
+
+function paint() {
+  const rpm = values["0C"], speed = values["0D"];
+  el("rpm").textContent = rpm === null || rpm === undefined ? "--" : Math.round(rpm);
+  el("rpm").style.color = tone("0C", rpm);
+  el("arc-rpm").style.color = tone("0C", rpm);
+  el("arc-rpm").setAttribute("stroke-dasharray",
+    `${(66.67 * Math.min(1, (rpm || 0) / 7000)).toFixed(2)} 100`);
+
+  el("speed").textContent = speed === null || speed === undefined ? "--" : Math.round(speed);
+  el("speed").style.color = tone("0D", speed);
+  el("arc-speed").style.color = tone("0D", speed);
+  el("arc-speed").setAttribute("stroke-dasharray",
+    `${(66.67 * Math.min(1, (speed || 0) / 200)).toFixed(2)} 100`);
+  el("speedBand").textContent = speed === null || speed === undefined ? "sin lectura"
+    : speed < 15 ? "0-15 sin alarma" : speed < 16 ? "15 verde"
+    : speed <= 30 ? "16-30 amarillo" : speed <= 45 ? "31-45 naranja" : "46+ rojo";
+
+  for (const [pid] of MINIS) {
+    const node = el("mini-" + pid);
+    if (!node) continue;
+    node.textContent = fmt(pid, values[pid]);
+    node.style.color = tone(pid, values[pid]);
+  }
+  for (const p of pids) {
+    const node = el("sen-" + p.pid);
+    if (!node) continue;
+    node.textContent = `${fmt(p.pid, values[p.pid])} ${p.unidad}`;
+    node.style.color = tone(p.pid, values[p.pid]);
+  }
+  el("volt").textContent = values["42"] === null || values["42"] === undefined
+    ? "--.- V" : Number(values["42"]).toFixed(1) + " V";
+  el("bt").className = "k " + (connected ? "ok" : "bad");
+  el("elm").className = "k " + (connected ? "ok" : "bad");
+  el("elm").textContent = connected ? "ELM" : "ELM✕";
+  el("fase").textContent = connected ? protocol : "adaptador sin enlace";
+  el("clock").textContent = new Date().toLocaleTimeString("es-MX",
+    { hour: "2-digit", minute: "2-digit", hour12: false });
+  renderInfo();
+  paintSpark();
+  if (tab === "graficas") drawChart();
+}
+
+// Franja inferior del tablero: histórico corto de RPM y resumen de la sesión.
+function paintSpark() {
+  const data = (history["0C"] || []).slice(-60);
+  const peak = data.length ? Math.max.apply(null, data) : 0;
+  el("sparkPeak").textContent = "máx " + Math.round(peak) + " rpm";
+  const top = Math.max(1200, peak);
+  const bars = [];
+  const offset = 60 - data.length;
+  for (let i = 0; i < 60; i++) {
+    const v = i < offset ? null : data[i - offset];
+    const h = v === null ? 1 : Math.max(3, Math.round((v / top) * 100));
+    bars.push(`<i style="height:${h}%"></i>`);
+  }
+  el("spark").innerHTML = bars.join("");
+  const secs = Math.floor((Date.now() - bootAt) / 1000);
+  const clock = Math.floor(secs / 60) + ":" + String(secs % 60).padStart(2, "0");
+  el("stripStats").innerHTML = `
+    <div><b>MÁX RPM</b><span>${Math.round(peak)}</span></div>
+    <div><b>MÁX TEMP</b><span>${maxTemp === null ? "--" : Math.round(maxTemp) + " °C"}</span></div>
+    <div><b>SESIÓN</b><span>${clock}</span></div>`;
+}
+
+function drawChart() {
+  const c = el("chart"), ctx = c.getContext("2d");
+  const data = history[graphPid] || [];
+  ctx.clearRect(0, 0, c.width, c.height);
+  if (data.length < 2) return;
+  const lo = Math.min.apply(null, data), hi = Math.max.apply(null, data);
+  const span = (hi - lo) || 1;
+  ctx.strokeStyle = tone(graphPid, values[graphPid]);
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  data.forEach((v, i) => {
+    const x = (i / (data.length - 1)) * c.width;
+    const y = c.height - ((v - lo) / span) * (c.height - 20) - 10;
+    if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+  });
+  ctx.stroke();
+  const def = pids.find((p) => p.pid === graphPid);
+  el("chartLabel").textContent = def ? def.nombre : graphPid;
+}
+
+async function tick() {
+  try {
+    const r = await fetch("/api/values", { cache: "no-store" });
+    const data = await r.json();
+    values = data.v || {};
+    if (values["05"] !== null && values["05"] !== undefined) {
+      maxTemp = Math.max(maxTemp === null ? -40 : maxTemp, values["05"]);
+    }
+    connected = !!data.connected;
+    protocol = data.protocol || "--";
+    device = data.device || "";
+    for (const pid in values) {
+      if (values[pid] === null) continue;
+      const s = history[pid] || (history[pid] = []);
+      s.push(values[pid]);
+      if (s.length > 90) s.shift();
+    }
+    paint();
+  } catch (err) {
+    console.warn("sin datos del panel", err);
+  }
+}
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+const STATE_TEXT = {
+  arrancando: "ARRANCANDO",
+  escaneando: "ESCANEANDO",
+  conectando: "CONECTANDO",
+  enlazado: "ENLAZADO",
+  reintentando: "REINTENTANDO",
+  apagado: "APAGADO",
+};
+const STATE_COLOR = {
+  arrancando: "hsl(var(--amber))",
+  escaneando: "hsl(var(--amber))",
+  conectando: "hsl(var(--amber))",
+  enlazado: "hsl(var(--green))",
+  reintentando: "hsl(var(--red))",
+  apagado: "hsl(var(--faint))",
+};
+
+let status = null;
+
+function renderStatus(data) {
+  status = data;
+  if (data.ssid) apSsid = data.ssid;
+  if (data.ip && data.ip !== "0.0.0.0") apIp = data.ip;
+  const state = data.state || "arrancando";
+  const label = el("linkState");
+  label.textContent = STATE_TEXT[state] || state.toUpperCase();
+  label.style.color = STATE_COLOR[state] || "hsl(var(--amber))";
+
+  const parts = [];
+  if (data.device) parts.push(data.device);
+  parts.push("intentos " + data.attempts);
+  if (state === "reintentando" && data.retryInMs > 0) {
+    parts.push("reintento en " + Math.ceil(data.retryInMs / 1000) + " s");
+  }
+  if (data.ready && data.protocol) parts.push(data.protocol);
+  if (data.error) parts.push(data.error);
+  el("linkDetail").textContent = parts.join(" · ");
+  el("autoState").textContent = data.auto ? "ACTIVADA" : "PAUSADA";
+  el("autoState").style.color = data.auto ? "hsl(var(--green))" : "hsl(var(--amber))";
+  if (document.activeElement !== el("pinInput")) el("pinInput").value = data.pin || "1234";
+
+  const scan = data.scan || { running: false, elapsedMs: 0, devices: [] };
+  el("scanFill").style.width = scan.running
+    ? Math.min(100, (scan.elapsedMs / 4000) * 100).toFixed(0) + "%"
+    : scan.devices.length ? "100%" : "0%";
+  el("scanFill").style.background = scan.running
+    ? "hsl(var(--amber))" : scan.devices.length ? "hsl(var(--green))" : "hsl(var(--line))";
+  el("scan").querySelector("small").textContent = scan.running
+    ? Math.min(4, Math.ceil(scan.elapsedMs / 1000)) + " s…"
+    : scan.devices.length + " encontrados";
+
+  el("devices").innerHTML = scan.devices.length
+    ? scan.devices.map((d) => `<button class="dev" data-mac="${d.mac}">
+        ${d.nombre || "sin nombre"} · ${d.rssi} dBm<span>${d.mac}</span></button>`).join("")
+    : scan.running
+      ? `<div class="mono" style="font-size:9px;color:hsl(var(--amber));padding:4px 2px">
+          buscando dispositivos cercanos…</div>`
+      : `<div class="mono" style="font-size:9px;color:hsl(var(--faint));padding:4px 2px">
+          sin dispositivos aún · escaneo automático cada 15 s</div>`;
+
+  const log = (data.log || []).slice(-6).reverse();
+  el("btLog").innerHTML = log.length
+    ? log.map((entry) => `<div style="display:flex;gap:6px">
+        <span style="color:hsl(var(--faint))">${Math.floor(entry.t / 1000)}s</span>
+        <span style="flex:1">${entry.msg}</span></div>`).join("")
+    : `<div style="color:hsl(var(--faint))">sin actividad todavía</div>`;
+
+  // Indicador del encabezado: parpadea cuando hay trabajo real en curso.
+  const busy = scan.running || state === "escaneando" || state === "conectando";
+  el("elm").classList.toggle("pulse", busy);
+  el("bt").classList.toggle("pulse", busy);
+}
+
+async function syncStatus() {
+  try {
+    renderStatus(await api("/api/status"));
+  } catch (err) {
+    el("linkDetail").textContent = "sin respuesta del ESP32";
+  }
+}
+
+el("pidBtns").onclick = (e) => {
+  const b = e.target.closest("[data-pid]");
+  if (!b) return;
+  graphPid = b.dataset.pid;
+  drawChart();
+};
+
+el("scan").onclick = async () => {
+  try {
+    await api("/api/scan", { method: "POST" });
+    toast("buscando adaptadores…");
+    syncStatus();
+  } catch (err) {
+    toast(err.message === "HTTP 409" ? "desconecta antes de buscar" : "error al buscar");
+  }
+};
+
+el("autoBtn").onclick = async () => {
+  try {
+    const on = status && status.auto ? "0" : "1";
+    await api("/api/auto?on=" + on, { method: "POST" });
+    toast(on === "1" ? "reconexión automática activada" : "reconexión automática pausada");
+    syncStatus();
+  } catch (err) {
+    toast("no se pudo cambiar el modo");
+  }
+};
+
+el("savePin").onclick = async () => {
+  const pin = (el("pinInput").value || "").trim();
+  if (!/^\d{4}$/.test(pin)) {
+    toast("el PIN debe tener 4 dígitos");
+    return;
+  }
+  try {
+    await api("/api/pin?pin=" + encodeURIComponent(pin), { method: "POST" });
+    toast("PIN guardado");
+    syncStatus();
+  } catch (err) {
+    toast("no se pudo guardar el PIN");
+  }
+};
+
+el("devices").onclick = async (e) => {
+  const b = e.target.closest("[data-mac]");
+  if (!b) return;
+  try {
+    await api("/api/connect?mac=" + encodeURIComponent(b.dataset.mac), { method: "POST" });
+    el("devices").innerHTML = "";
+    toast("ELM327 conectado");
+    tick();
+  } catch (err) {
+    toast("no se pudo conectar");
+  }
+};
+
+el("disconnect").onclick = async () => {
+  try {
+    await api("/api/disconnect", { method: "POST" });
+    toast("ELM327 desconectado");
+    tick();
+  } catch (err) {
+    toast("error al desconectar");
+  }
+};
+
+el("dtcRead").onclick = async () => {
+  try {
+    const d = await api("/api/dtc");
+    const codes = d.stored || [];
+    el("dtcs").innerHTML = codes.length
+      ? codes.map((c) => `<div class="item">
+          <span class="v display" style="color:hsl(var(--red))">${c}</span>
+          <span class="n">código almacenado</span></div>`).join("")
+      : `<div class="mono" style="font-size:11px;color:hsl(var(--green))">sin códigos</div>`;
+  } catch (err) {
+    toast("no se pudieron leer los códigos");
+  }
+};
+
+el("dtcClear").onclick = async () => {
+  if (!window.confirm("¿Borrar códigos y apagar MIL?")) return;
+  try {
+    await api("/api/dtc/clear", { method: "POST" });
+    el("dtcs").innerHTML = "";
+    toast("códigos borrados");
+  } catch (err) {
+    toast("el adaptador no confirmó");
+  }
+};
+
+document.querySelector(".tabs").onclick = (e) => {
+  const b = e.target.closest("[data-tab]");
+  if (!b) return;
+  tab = b.dataset.tab;
+  document.querySelectorAll(".tabs button").forEach((x) =>
+    x.setAttribute("aria-pressed", String(x === b)));
+  document.querySelectorAll("main section").forEach((s) =>
+    s.classList.toggle("hidden", s.id !== "tab-" + tab));
+  if (tab === "graficas") drawChart();
+};
+
+let toastTimer;
+function toast(msg) {
+  clearTimeout(toastTimer);
+  let node = document.querySelector(".toast");
+  if (!node) {
+    node = document.createElement("div");
+    node.className = "toast";
+    document.body.appendChild(node);
+  }
+  node.textContent = msg;
+  toastTimer = setTimeout(() => node.remove(), 2400);
+}
+
+(async () => {
+  try {
+    pids = await api("/api/pids");
+  } catch (err) {
+    pids = [];
+  }
+  buildUi();
+  paint();
+  tick();
+  syncStatus();
+  setInterval(tick, 250);
+  setInterval(syncStatus, 700);
+})();
+</script>
+</body>
+</html>
