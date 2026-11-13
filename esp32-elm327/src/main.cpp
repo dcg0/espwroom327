@@ -11,6 +11,7 @@
 #include <WebServer.h>
 #include <LittleFS.h>
 #include <BluetoothSerial.h>
+#include <BTScan.h>
 #include <Preferences.h>
 
 // ----------------------------- Configuración --------------------------------
@@ -258,7 +259,7 @@ static bool connectAdapter(const String &mac, const String &name) {
   gState = ST_CONNECTING;
   gLastError = "";
   addLog("emparejando " + (name.length() ? name : mac));
-  SerialBT.setPin(gPin.c_str());
+  SerialBT.setPin(gPin.c_str(), gPin.length());
   if (SerialBT.connected()) SerialBT.disconnect();
   BTAddress addr(mac.c_str());
   if (!SerialBT.connect(addr)) {
@@ -294,17 +295,20 @@ static void scanTask(void *) {
     vTaskDelete(nullptr);
     return;
   }
-  SerialBT.discover(SCAN_MS);
-  int count = SerialBT.getDeviceCount();
+  BTScanResults *results = SerialBT.discover(SCAN_MS);
+  int count = results ? results->getCount() : 0;
   uint8_t stored = 0;
   for (int i = 0; i < count && stored < MAX_FOUND; i++) {
-    String mac = SerialBT.getDeviceAddress(i).toString();
+    BTAdvertisedDevice *device = results->getDevice(i);
+    if (!device) continue;
+    String mac = device->getAddress().toString();
     if (!mac.length()) continue;
-    gFound[stored].name = SerialBT.getDeviceName(i);
+    gFound[stored].name = String(device->getName().c_str());
     gFound[stored].mac = mac;
-    gFound[stored].rssi = SerialBT.getDeviceRSSI(i);
+    gFound[stored].rssi = device->haveRSSI() ? device->getRSSI() : 0;
     stored++;
   }
+  SerialBT.discoverClear();
   gFoundCount = stored;
   addLog("escaneo listo: " + String(stored) + " dispositivos");
   gScanRunning = false;
@@ -448,7 +452,7 @@ static String valuesJson() {
   for (uint8_t i = 0; i < PID_COUNT; i++) {
     if (i) out += ',';
     out += '"' + String(PIDS[i].pid) + "\":";
-    if (gValid[i]) out += String(gValue[i], PIDS[i].dec);
+    if (gValid[i]) out += String(gValue[i], (unsigned int)PIDS[i].dec);
     else out += "null";
   }
   out += "}}";
@@ -523,7 +527,7 @@ static void handlePin() {
   }
   gPin = pin;
   prefs.putString("pin", gPin);
-  SerialBT.setPin(gPin.c_str());
+  SerialBT.setPin(gPin.c_str(), gPin.length());
   addLog("PIN actualizado");
   server.send(200, "application/json", "{\"ok\":true}");
 }
@@ -581,7 +585,7 @@ void setup() {
                 apOk ? "activo" : "FALLO", WiFi.softAPIP().toString().c_str(),
                 gApPass.c_str());
   SerialBT.begin(BT_NAME, true);
-  SerialBT.setPin(gPin.c_str());
+  SerialBT.setPin(gPin.c_str(), gPin.length());
 
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/values", HTTP_GET, handleValues);
