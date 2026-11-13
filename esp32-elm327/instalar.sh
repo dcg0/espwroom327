@@ -3,7 +3,8 @@
 #
 # Instala PlatformIO, compila el firmware, lo flashea en el ESP32 WROOM
 # conectado por USB y sube el panel web (LittleFS). Al terminar te deja la
-# placa sirviendo el panel en http://192.168.4.1.
+# placa sirviendo el panel en http://192.168.4.1. La clave inicial única
+# aparece únicamente en el monitor serie al arrancar el ESP32.
 #
 # Uso:
 #   ./instalar.sh                 detecta el puerto automáticamente
@@ -116,7 +117,7 @@ fi
 
 printf '\n%s========================================%s\n' "$C_OK" "$C_OFF"
 ok "Listo. La placa ya sirve el panel."
-printf '  1. Conéctate a la WiFi %sBuss-PANEL%s (clave %sJuanita123%s)\n' "$C_OK" "$C_OFF" "$C_OK" "$C_OFF"
+printf '  1. Conéctate a la WiFi %sBuss-PANEL%s usando la clave inicial mostrada en el monitor serie\n' "$C_OK" "$C_OFF"
 printf '  2. Abre %shttp://192.168.4.1%s en el navegador\n' "$C_OK" "$C_OFF"
 printf '  3. Pestaña AJUSTES -> Escanear adaptadores -> elige tu ELM327 (PIN 1234)\n'
 printf '  4. El ELM327 debe ser Bluetooth Classic, no BLE. Contacto del auto puesto.\n'

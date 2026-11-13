@@ -1,0 +1,37 @@
+name: Firmware checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  firmware:
+    name: Build and security checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.x'
+      - name: Install PlatformIO
+        run: python -m pip install --disable-pip-version-check platformio
+      - name: Build firmware
+        working-directory: esp32-elm327
+        run: pio run
+      - name: Check for embedded credentials
+        run: |
+          # Keep the scanner patterns split so this workflow cannot match itself.
+          fixed_wifi='Juanita'"123"
+          ap_assignment='AP_'"PASS"
+          private_key='BEGIN '"RSA"' PRIVATE KEY'
+          if git grep -n -I -E "$fixed_wifi|$ap_assignment[[:space:]]*=|$private_key|api[_-]?key[[:space:]]*[:=]" -- ':!SECURITY.md' ':!.github/workflows/ci.yml'; then
+            echo 'Hard-coded credential or private-key material found.' >&2
+            exit 1
+          fi
+          test ! -e .env
+          echo 'Firmware security checks passed'

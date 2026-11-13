@@ -63,7 +63,7 @@ y subir `data/index.html` con la herramienta de LittleFS.
 ## Uso
 
 1. Enciende el auto o pon el contacto (el ELM327 necesita alimentación).
-2. Conéctate a la WiFi `Buss-PANEL` (clave `Juanita123`).
+2. Conéctate a la WiFi `Buss-PANEL` con la clave inicial única que el firmware muestra en el monitor serie al arrancar. No compartas esa clave en issues ni en el repositorio.
 3. Abre `http://192.168.4.1`.
 4. Pestaña AJUSTES → Escanear adaptadores → elige el ELM327 (PIN 1234, algunos
    clones usan 0000; si falla, emparéjalo primero desde el celular).
@@ -104,7 +104,7 @@ y subir `data/index.html` con la herramienta de LittleFS.
 - PIDs sin respuesta se publican como `null` y la interfaz muestra `--`.
 - Colores: cada sensor tiene su color; fuera de rango pasa a ámbar o rojo. La
   velocidad usa franjas: 15 verde, 16-30 ámbar, 31-45 naranja, 46+ rojo.
-- WiFi y clave se cambian en `src/main.cpp` (`AP_SSID`, `AP_PASS`).
+- El SSID se define en `src/main.cpp`; la clave inicial se deriva de la identidad única del ESP32 y no se almacena en el repositorio.
 
 ## Límites
 

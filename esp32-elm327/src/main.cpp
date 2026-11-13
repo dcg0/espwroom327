@@ -16,7 +16,6 @@
 // ----------------------------- Configuración --------------------------------
 // SSID solo ASCII: los emojis rompen el punto de acceso en muchos telefonos.
 static const char *AP_SSID = "Buss-PANEL";
-static const char *AP_PASS = "Juanita123";
 static const char *BT_NAME = "Buss-PANEL";
 static const char *DEFAULT_PIN = "1234";
 static const uint32_t PID_INTERVAL_MS = 45;
@@ -29,6 +28,14 @@ static const uint8_t MAX_FAILS_BEFORE_DROP = 3;
 WebServer server(WEBSERVER_PORT);
 BluetoothSerial SerialBT;
 Preferences prefs;
+static String gApPass;
+
+static String buildApPassword() {
+  const uint64_t chip = ESP.getEfuseMac();
+  char password[13];
+  snprintf(password, sizeof(password), "DC%08lX", (unsigned long)(chip & 0xFFFFFFFFULL));
+  return String(password);
+}
 
 // ------------------------------- PIDs OBD-II --------------------------------
 struct PidDef {
@@ -563,15 +570,16 @@ void setup() {
   Serial.begin(115200);
   LittleFS.begin(true);
   loadSettings();
-
+  gApPass = buildApPassword();
   WiFi.mode(WIFI_AP);
-  bool apOk = WiFi.softAP(AP_SSID, AP_PASS, 1, 0, 4);
+  bool apOk = WiFi.softAP(AP_SSID, gApPass.c_str(), 1, 0, 4);
   if (!apOk) {
     delay(400);
-    apOk = WiFi.softAP(AP_SSID, AP_PASS, 1, 0, 4);
+    apOk = WiFi.softAP(AP_SSID, gApPass.c_str(), 1, 0, 4);
   }
-  Serial.printf("AP \"%s\" %s · IP %s\n", AP_SSID, apOk ? "activo" : "FALLO",
-                WiFi.softAPIP().toString().c_str());
+  Serial.printf("AP \"%s\" %s · IP %s · clave inicial %s\n", AP_SSID,
+                apOk ? "activo" : "FALLO", WiFi.softAPIP().toString().c_str(),
+                gApPass.c_str());
   SerialBT.begin(BT_NAME, true);
   SerialBT.setPin(gPin.c_str());
 
