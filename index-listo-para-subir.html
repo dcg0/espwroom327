@@ -4,6 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#07121c" />
+    <meta name="referrer" content="no-referrer" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'; frame-src 'none'; connect-src 'none'; img-src 'self' https://dcg0.github.io; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'sha256-S2f5DqnRsNdm++g+KPbydQKX5Hf0s98PPYvUFuvO+us='; script-src-attr 'none'; upgrade-insecure-requests" />
     <meta
       name="description"
       content="Conoce el proyecto ESP32 WROOM y explora una demostración OBD-II con datos completamente simulados."
@@ -14,7 +16,6 @@
       type="image/webp"
       href="https://dcg0.github.io/El-laboratorio/dcesp32-logo.webp"
     />
-    <link rel="preconnect" href="https://dcg0.github.io" crossorigin />
     <style>
 @import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap");
 :root {
@@ -2204,9 +2205,10 @@ p {
   pauseButton.addEventListener("click", () => {
     paused = !paused;
     pauseButton.setAttribute("aria-pressed", String(paused));
-    pauseButton.innerHTML = paused
-      ? "▶ <span>Reanudar demo</span>"
-      : "Ⅱ <span>Pausar demo</span>";
+    pauseButton.firstChild.textContent = paused ? "▶ " : "Ⅱ ";
+    pauseButton.querySelector("span").textContent = paused
+      ? "Reanudar demo"
+      : "Pausar demo";
     throttle.disabled = paused;
     throttle.setAttribute("aria-disabled", String(paused));
   });

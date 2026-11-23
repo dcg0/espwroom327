@@ -79,9 +79,10 @@
   pauseButton.addEventListener("click", () => {
     paused = !paused;
     pauseButton.setAttribute("aria-pressed", String(paused));
-    pauseButton.innerHTML = paused
-      ? "▶ <span>Reanudar demo</span>"
-      : "Ⅱ <span>Pausar demo</span>";
+    pauseButton.firstChild.textContent = paused ? "▶ " : "Ⅱ ";
+    pauseButton.querySelector("span").textContent = paused
+      ? "Reanudar demo"
+      : "Pausar demo";
     throttle.disabled = paused;
     throttle.setAttribute("aria-disabled", String(paused));
   });
